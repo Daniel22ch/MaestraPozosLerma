@@ -1,0 +1,7 @@
+# Al compilar .LIB
+*.bdl
+*.hdl
+*.org
+*.map
+*.rom
+*.brk

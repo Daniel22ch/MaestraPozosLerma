@@ -469,7 +469,15 @@ unsigned char enlaceweb_estado[20];
 unsigned long enlaceweb_timerweb[20];
 unsigned char flag_inicio;
 
-unsigned int calcula_estado_enlaceweb(unsigned int num)
+#define MUTEX_LIBRE 1
+#define MUTEX_OCUPADO 0
+#define ULTIMA_DIRECCION_HMI 645
+
+unsigned char mutex_mensajes_scarling = MUTEX_LIBRE;
+unsigned int contador_costate_hmi_utr = 0;
+
+unsigned int
+calcula_estado_enlaceweb(unsigned int num)
 {
 	if (enlaceweb_cont[num] == my4XRegs[tabla[num].enlace_hmi + 2300])
 	{ // no ha camabiado el contador
@@ -502,8 +510,13 @@ cofunc void COF_captura_datos_scairlink(unsigned int No_dispo)
 	PRINTFDEBUG("\nINFUNC: %u,", No_dispo);
 	waitfor(DelayMs(100));
 	//               it  = mmRead_alter(  unsigned wAddr,                    unsigned wReg,                unsigned wCount,                                     void *pwRegs)
+	while (mutex_mensajes_scarling == MUTEX_OCUPADO0)
+	{
+		yield;
+	}
+	mutex_mensajes_scarling = MUTEX_OCUPADO;
 	waitfor(error = mmRead_alter(dir_scairlink, tabla[No_dispo].incio_tab_hmi, tabla[No_dispo].cantidad_hmi, (int *)&my4XRegs[tabla[No_dispo].incio_tab_hmi])); // Read registros CHALMITA
-
+	mutex_mensajes_scarling = MUTEX_LIBRE;
 	if (error == 0xffff)
 	{
 		//memcpy((char*)&my4XRegs[tabla[No_dispo].incio_tab_hmi],(char*)&my4XRegs[tabla[No_dispo].incio_tab_scair], tabla[No_dispo].cantidad_hmi*2);      // Copia valores       ( CHALMITA )
@@ -711,10 +724,14 @@ main()
 	//------------------------------------------------------------------------------
 	conta_seg = 0;
 	new_seg = read_rtc();
-	sprintf(new_ip, "192.168.1.49");
-	sprintf(new_nm, "255.255.255.0");
-	sprintf(new_gw, "192.168.1.50");
-	sprintf(new_ns, "192.168.1.81");
+	// sprintf(new_ip, "192.168.1.49");
+	// sprintf(new_nm, "255.255.255.0");
+	// sprintf(new_gw, "192.168.1.50");
+	// sprintf(new_ns, "192.168.1.81");
+	sprintf(new_ip, "10.10.10.6");
+	sprintf(new_nm, "255.255.0.0");
+	sprintf(new_gw, "10.10.10.1");
+	sprintf(new_ns, "10.10.10.72");
 	/*******************************************************************************
 	   SECCION INICIALIZACION SOCKET TCP/IP
 	*******************************************************************************/
@@ -965,6 +982,45 @@ main()
 		//----------  R U T I N A    M O D B U S    T C P / I P    ----------------------------------------------------------------------------
 		//-------------------------------------------------------------------------------------------------------------------------------------
 		costate
+		{
+			///////////////////////////////////////////////////////////////////////////////////////////////////
+			////       R E A D       D A T A       U T R ' S
+			///////////////////////////////////////////////////////////////////////////////////////////////////
+
+			PRINTFDEBUG("RD slaves\n");
+			for (contador_costate_hmi_utr = 0; contador_costate_hmi_utr < No_max_sitios; contador_costate_hmi_utr++)
+			{
+				if (contador_costate_hmi_utr != dispo_local)
+				{
+					PRINTFDEBUG("RD slave [%d]\n", contador_costate_hmi_utr);
+					wfd COF_captura_datos_scairlink(contador_costate_hmi_utr);
+				}
+				yield;
+			}
+			PRINTFDEBUG("ENd rd Slaves\n");
+			///////////////////////////////////////////////////////////////////////////////////////////////////
+			////       W R I T E        D A T A        H M I
+			///////////////////////////////////////////////////////////////////////////////////////////////////
+			for (contador_costate_hmi_utr = 100; contador_costate_hmi_utr <= ULTIMA_DIRECCION_HMI; contador_costate_hmi_utr += 100)
+			{
+				waitfor(DelayMs(100));
+				if (contador_costate_hmi_utr != ULTIMA_DIRECCION_HMI)
+					waitfor(error = mmPresetRegs_gate(addr_reg_mb_HMI, contador_costate_hmi_utr, 100, (int *)&my4XRegs[contador_costate_hmi_utr]));
+				else
+					waitfor(error = mmPresetRegs_gate(addr_reg_mb_HMI, contador_costate_hmi_utr, ULTIMA_DIRECCION_HMI - contador_costate_hmi_utr, (int *)&my4XRegs[contador_costate_hmi_utr]));
+				if (error == 0xffff)
+				{
+					nada = 0x00;
+				}
+				else
+				{
+					PRINTFDEBUG("Error H3\n");
+					nada = 0x00;
+				}
+				yield;
+			}
+		}
+		costate
 		{ // Process MODBUS TCP activity
 			msRun();
 		}
@@ -1111,19 +1167,6 @@ main()
 						}
 					}
 
-					///////////////////////////////////////////////////////////////////////////////////////////////////
-					////       R E A D       D A T A       U T R ' S
-					///////////////////////////////////////////////////////////////////////////////////////////////////
-					PRINTFDEBUG("RD slaves\n");
-					for (zz = 0; zz < No_max_sitios; zz++)
-					{
-						if (zz != dispo_local)
-						{
-							PRINTFDEBUG("RD slave [%d]\n", zz);
-							wfd COF_captura_datos_scairlink(zz);
-						}
-					}
-					PRINTFDEBUG("ENd rd Slaves\n");
 					/*
             wfd error = COF_RD_INSTA_UTR();                                // RD valores Instantaneos del
             enlace_global_1  = esta_com[0].enlace;
@@ -1166,134 +1209,141 @@ main()
 					//
 					/////////////////////////////////////////////////////////////////////////////////////////////////////
 					waitfor(DelayMs(100));
-					//               it  = mmRead_alter(   unsigned wAddr,                         unsigned wReg,                    unsigned wCount,                                  void *pwRegs)
-					waitfor(error = mmRead_alter(dir_scairlink, tabla[dispo_local].incio_tab_hmi, tabla[dispo_local].cantidad_hmi, (int *)&my4XRegs[tabla[dispo_local].incio_tab_hmi])); // Read registros Scairlink
+				}
 
-					if (error == 0xffff)
-					{
-						//memcpy((char*)&my4XRegs[tabla[dispo_local].incio_tab_hmi],(char*)&my4XRegs[tabla[dispo_local].incio_tab_scair], tabla[dispo_local].cantidad_hmi*2);      // Copia valores       ( CHALMITA )
-						/*
+				//               it  = mmRead_alter(   unsigned wAddr,                         unsigned wReg,                    unsigned wCount,                                  void *pwRegs)
+				while (mutex_mensajes_scarling == MUTEX_OCUPADO)
+				{
+					yield;
+				}
+				mutex_mensajes_scarling = MUTEX_OCUPADO;
+				waitfor(error = mmRead_alter(dir_scairlink, tabla[dispo_local].incio_tab_hmi, tabla[dispo_local].cantidad_hmi, (int *)&my4XRegs[tabla[dispo_local].incio_tab_hmi])); // Read registros Scairlink
+				mutex_mensajes_scarling = MUTEX_LIBRE;
+				if (error == 0xffff)
+				{
+					//memcpy((char*)&my4XRegs[tabla[dispo_local].incio_tab_hmi],(char*)&my4XRegs[tabla[dispo_local].incio_tab_scair], tabla[dispo_local].cantidad_hmi*2);      // Copia valores       ( CHALMITA )
+					/*
               if( my4XRegs[tabla[dispo_local].enlace_hmi] >= 2){
                  my4XRegs[tabla[dispo_local].enlace_hmi] = 0x01;
               }else{
               	my4XRegs[tabla[dispo_local].enlace_hmi] = 0x00;
               }
             */
-						my4XRegs[322] = 0x01;							// Mantenimiento
-						my4XRegs[tabla[dispo_local].enlace_hmi] = 0x01; // Enlace
-						apunta_tiempo = (int *)&my4XRegs[tabla[dispo_local].tiempo_hmi];
-						Almacena_Datos_Tiempo(apunta_tiempo);
-					}
-					else
+					my4XRegs[322] = 0x01;							// Mantenimiento
+					my4XRegs[tabla[dispo_local].enlace_hmi] = 0x01; // Enlace
+					apunta_tiempo = (int *)&my4XRegs[tabla[dispo_local].tiempo_hmi];
+					Almacena_Datos_Tiempo(apunta_tiempo);
+				}
+				else
+				{
+					PRINTFDEBUG("Error RD UTR LOCAL\n");
+					my4XRegs[tabla[dispo_local].enlace_hmi] = 0x00;
+				}
+				///////////////////////////////////////////////////////////////////////////////////////////////////
+				////       C O N T R O L      B O M B A S       H M I
+				///////////////////////////////////////////////////////////////////////////////////////////////////
+				if (flag_inicio_control_A == 0)
+				{
+					waitfor(DelayMs(100));
+					//               it  = mmRead_gate(      unsigned wAddr,         unsigned wReg,   unsigned wCount,             void *pwRegs)
+					waitfor(error = mmRead_gate(addr_reg_mb_HMI, addr_reg_mb_ctrl_hmi, 1, (int *)&cmd_control_hmi)); // Read Registros
+					if (error == 0xffff)
 					{
-						PRINTFDEBUG("Error RD UTR LOCAL\n");
-						my4XRegs[tabla[dispo_local].enlace_hmi] = 0x00;
-					}
-					///////////////////////////////////////////////////////////////////////////////////////////////////
-					////       C O N T R O L      B O M B A S       H M I
-					///////////////////////////////////////////////////////////////////////////////////////////////////
-					if (flag_inicio_control_A == 0)
-					{
-						waitfor(DelayMs(100));
-						//               it  = mmRead_gate(      unsigned wAddr,         unsigned wReg,   unsigned wCount,             void *pwRegs)
-						waitfor(error = mmRead_gate(addr_reg_mb_HMI, addr_reg_mb_ctrl_hmi, 1, (int *)&cmd_control_hmi)); // Read Registros
-						if (error == 0xffff)
+						if (cmd_control_hmi != 0)
 						{
-							if (cmd_control_hmi != 0)
+							waitfor(DelayMs(100));
+							// mmPresetReg_gate(   unsigned wAddr,          unsigned wReg, unsigned wVal)
+							waitfor(error = mmPresetReg_gate(addr_reg_mb_HMI, addr_reg_mb_ctrl_hmi, 0));
+							if (error == 0xffff)
 							{
-								waitfor(DelayMs(100));
-								// mmPresetReg_gate(   unsigned wAddr,          unsigned wReg, unsigned wVal)
-								waitfor(error = mmPresetReg_gate(addr_reg_mb_HMI, addr_reg_mb_ctrl_hmi, 0));
-								if (error == 0xffff)
-								{
-									PRINTFDEBUG("--%x\n", cmd_control_hmi);
-									nada = 0x00;
-								}
-								else
-								{
-									cmd_control_hmi = 0x00;
-								}
-							}
-						}
-						else
-						{
-							cmd_control_hmi = 0x00;
-						}
-					}
-
-					if (flag_inicio_control_B == 0)
-					{
-						waitfor(DelayMs(100));
-						//               it  = mmRead_alter(    unsigned wAddr,           unsigned wReg,   unsigned wCount,                  void *pwRegs)
-						waitfor(error = mmRead_alter(dir_scairlink, addr_reg_mb_ctrl_regio, 1, (int *)&cmd_control_regional)); // Read Registros
-						if (error == 0xffff)
-						{
-							if (cmd_control_regional != 0)
-							{
-								waitfor(DelayMs(100));
-								// mmPresetReg_alter(   unsigned wAddr,            unsigned wReg, unsigned wVal)
-								waitfor(error = mmPresetReg_alter(dir_scairlink, addr_reg_mb_ctrl_regio, 0));
-								if (error == 0xffff)
-								{
-									PRINTFDEBUG("--%x\n", cmd_control_regional);
-									nada = 0x00;
-								}
-								else
-								{
-									cmd_control_regional = 0x00;
-								}
-							}
-						}
-						else
-						{
-							cmd_control_regional = 0x00;
-						}
-					}
-
-					if (cmd_control_hmi != 0)
-					{
-						cmd_control = cmd_control_hmi;
-					}
-					else
-					{
-						if (cmd_control_regional != 0)
-						{
-							cmd_control = cmd_control_regional;
-							cmd_control_regional = 0x00;
-						}
-					}
-
-					//////////////////////////////////////////////////////////////////////////
-					//     PROCESA CONTROL REGIONAL
-					//////////////////////////////////////////////////////////////////////////
-
-					//if( (cmd_control != 0) && (my4XRegs[dir_modo_control] == 2) )   // Hay un comando control y perilla en automatico
-					if ((cmd_control != 0))
-					{ // Hay un comando control y perilla en automatico
-						PRINTFDEBUG("Reg cmd_control_regional = %x\n", cmd_control);
-						No_sitio = cmd_control & 0xFF00;
-						No_sitio = No_sitio >> 8;
-
-						if (No_sitio != Numero_sitio)
-						{
-							if (No_sitio > 0 && No_sitio < 55)
-							{
-								waitfor(DelayMs(100));
-								// mmPresetReg_alter(  unsigned wAddr,            unsigned wReg,    nsigned wVal)
-								waitfor(error = mmPresetReg_alter(No_sitio + 100, addr_reg_mb_ctrl_regio, cmd_control));
-								PRINTFDEBUG("START/STOP %d,%d\n", No_sitio, cmd_control);
-								if (error != 0xffff)
-								{
-									PRINTFDEBUG("Falla Control por radio, escribiendo en 2390 %d\n", No_sitio);
-									nada = 0x00;
-									my4XRegs[2390] = cmd_control;
-									my4XRegs[2391] = 101;
-								}
+								PRINTFDEBUG("--%x\n", cmd_control_hmi);
+								nada = 0x00;
 							}
 							else
 							{
-								PRINTFDEBUG("Error sitio Equivocado\n");
+								cmd_control_hmi = 0x00;
+							}
+						}
+					}
+					else
+					{
+						cmd_control_hmi = 0x00;
+					}
+				}
+
+				if (flag_inicio_control_B == 0)
+				{
+					waitfor(DelayMs(100));
+					//               it  = mmRead_alter(    unsigned wAddr,           unsigned wReg,   unsigned wCount,                  void *pwRegs)
+					while (mutex_mensajes_scarling == MUTEX_OCUPADO)
+					{
+						yield;
+					}
+					mutex_mensajes_scarling = MUTEX_OCUPADO;
+					waitfor(error = mmRead_alter(dir_scairlink, addr_reg_mb_ctrl_regio, 1, (int *)&cmd_control_regional)); // Read Registros
+					mutex_mensajes_scarling = MUTEX_LIBRE;
+					if (error == 0xffff)
+					{
+						if (cmd_control_regional != 0)
+						{
+							waitfor(DelayMs(100));
+							// mmPresetReg_alter(   unsigned wAddr,            unsigned wReg, unsigned wVal)
+							waitfor(error = mmPresetReg_alter(dir_scairlink, addr_reg_mb_ctrl_regio, 0));
+							if (error == 0xffff)
+							{
+								PRINTFDEBUG("--%x\n", cmd_control_regional);
 								nada = 0x00;
+							}
+							else
+							{
+								cmd_control_regional = 0x00;
+							}
+						}
+					}
+					else
+					{
+						cmd_control_regional = 0x00;
+					}
+				}
+
+				if (cmd_control_hmi != 0)
+				{
+					cmd_control = cmd_control_hmi;
+				}
+				else
+				{
+					if (cmd_control_regional != 0)
+					{
+						cmd_control = cmd_control_regional;
+						cmd_control_regional = 0x00;
+					}
+				}
+
+				//////////////////////////////////////////////////////////////////////////
+				//     PROCESA CONTROL REGIONAL
+				//////////////////////////////////////////////////////////////////////////
+
+				//if( (cmd_control != 0) && (my4XRegs[dir_modo_control] == 2) )   // Hay un comando control y perilla en automatico
+				if ((cmd_control != 0))
+				{ // Hay un comando control y perilla en automatico
+					PRINTFDEBUG("Reg cmd_control_regional = %x\n", cmd_control);
+					No_sitio = cmd_control & 0xFF00;
+					No_sitio = No_sitio >> 8;
+
+					if (No_sitio != Numero_sitio)
+					{
+						if (No_sitio > 0 && No_sitio < 55)
+						{
+							waitfor(DelayMs(100));
+							// mmPresetReg_alter(  unsigned wAddr,            unsigned wReg,    nsigned wVal)
+							waitfor(error = mmPresetReg_alter(No_sitio + 100, addr_reg_mb_ctrl_regio, cmd_control));
+							PRINTFDEBUG("START/STOP %d,%d\n", No_sitio, cmd_control);
+							if (error != 0xffff)
+							{
+								PRINTFDEBUG("Falla Control por radio, escribiendo en 2390 %d\n", No_sitio);
+								nada = 0x00;
+								my4XRegs[2390] = cmd_control;
+								my4XRegs[2391] = 101;
 							}
 						}
 						else
@@ -1301,151 +1351,75 @@ main()
 							PRINTFDEBUG("Error sitio Equivocado\n");
 							nada = 0x00;
 						}
-						cmd_control = 0x00;
-						cmd_control_hmi = 0x00;
-						my4XRegs[addr_reg_mb_ctrl_regio] = 0x00;
-					}
-					///////////////////////////////////////////////////////////////////////////////////////////////////
-					////       W R I T E        C O U N T E R      S E C U E N C I A L        H M I
-					///////////////////////////////////////////////////////////////////////////////////////////////////
-
-					conta_secuen_hmi++;
-					waitfor(DelayMs(100));
-					// mmPresetReg_gate(   unsigned wAddr,            unsigned wReg,      unsigned wVal)
-					waitfor(error = mmPresetReg_gate(addr_reg_mb_HMI, addr_reg_conta_sec_hmi, conta_secuen_hmi)); // WR conta secuencial
-					if (error == 0xffff)
-					{
-						nada = 0x00;
 					}
 					else
 					{
-						PRINTFDEBUG("Error Conta Sec HMI\n");
+						PRINTFDEBUG("Error sitio Equivocado\n");
 						nada = 0x00;
 					}
-
-					///////////////////////////////////////////////////////////////////////////////////////////////////
-					////       W R I T E        D A T A        H M I
-					///////////////////////////////////////////////////////////////////////////////////////////////////
-
-					waitfor(DelayMs(100));
-					//                      mmPresetRegs_gate(     unsigned wAddr,   unsigned wReg,   unsigned wCount,          void *pwRegs)
-					waitfor(error = mmPresetRegs_gate(addr_reg_mb_HMI, 100, 100, (int *)&my4XRegs[100]));
-					if (error == 0xffff)
-					{
-						nada = 0x00;
-					}
-					else
-					{
-						PRINTFDEBUG("Error H1\n");
-						nada = 0x00;
-					}
-
-					waitfor(DelayMs(100));
-					//                     mmPresetRegs_gate(     unsigned wAddr,   unsigned wReg,   unsigned wCount,          void *pwRegs)
-					waitfor(error = mmPresetRegs_gate(addr_reg_mb_HMI, 200, 100, (int *)&my4XRegs[200]));
-					if (error == 0xffff)
-					{
-						nada = 0x00;
-					}
-					else
-					{
-						PRINTFDEBUG("Error H2\n");
-						nada = 0x00;
-					}
-
-					waitfor(DelayMs(100));
-					//                     mmPresetRegs_gate(     unsigned wAddr,   unsigned wReg,   unsigned wCount,          void *pwRegs)
-					waitfor(error = mmPresetRegs_gate(addr_reg_mb_HMI, 300, 100, (int *)&my4XRegs[300]));
-					if (error == 0xffff)
-					{
-						nada = 0x00;
-					}
-					else
-					{
-						PRINTFDEBUG("Error H3\n");
-						nada = 0x00;
-					}
-
-					waitfor(DelayMs(100));
-					//                     mmPresetRegs_gate(     unsigned wAddr,   unsigned wReg,   unsigned wCount,          void *pwRegs)
-					waitfor(error = mmPresetRegs_gate(addr_reg_mb_HMI, 400, 100, (int *)&my4XRegs[400]));
-					if (error == 0xffff)
-					{
-						nada = 0x00;
-					}
-					else
-					{
-						PRINTFDEBUG("Error H4\n");
-						nada = 0x00;
-					}
-
-					waitfor(DelayMs(100));
-					//                     mmPresetRegs_gate(     unsigned wAddr,   unsigned wReg,   unsigned wCount,          void *pwRegs)
-					waitfor(error = mmPresetRegs_gate(addr_reg_mb_HMI, 500, 100, (int *)&my4XRegs[500]));
-					if (error == 0xffff)
-					{
-						nada = 0x00;
-					}
-					else
-					{
-						PRINTFDEBUG("Error H5\n");
-						nada = 0x00;
-					}
-
-					waitfor(DelayMs(100));
-					//                     mmPresetRegs_gate(     unsigned wAddr,   unsigned wReg,   unsigned wCount,          void *pwRegs)
-					waitfor(error = mmPresetRegs_gate(addr_reg_mb_HMI, 600, 45, (int *)&my4XRegs[600]));
-					if (error == 0xffff)
-					{
-						nada = 0x00;
-					}
-					else
-					{
-						PRINTFDEBUG("Error H6\n");
-						nada = 0x00;
-					}
-
-					if (my4XRegs[reset_slink] == 0xaa55)
-					{ // Reset hardware Medidor de Nivel
-						digOut(0, 0);
-						waitfor(DelayMs(2000));
-						digOut(0, 1);
-						my4XRegs[reset_slink] = 0x00;
-					}
-
-					if (my4XRegs[reset_alarma] == 0xaa55)
-					{
-						digOut(1, 0);
-						waitfor(DelayMs(2000));
-						digOut(1, 1);
-						my4XRegs[reset_alarma] = 0x00;
-					}
-
-					if (my4XRegs[reset_rabbit] == 0xaa55)
-					{
-						digOut(2, 0);
-						waitfor(DelayMs(2000));
-						digOut(2, 1);
-						my4XRegs[reset_rabbit] = 0x00;
-					}
-
-					tiempo_final = read_rtc();
-					ventana_tiempo = tiempo_final - tiempo_inicio;
-					PRINTFDEBUG("Tiempo proceso=%lu\n", ventana_tiempo);
+					cmd_control = 0x00;
+					cmd_control_hmi = 0x00;
+					my4XRegs[addr_reg_mb_ctrl_regio] = 0x00;
 				}
-			}
-		}
+				///////////////////////////////////////////////////////////////////////////////////////////////////
+				////       W R I T E        C O U N T E R      S E C U E N C I A L        H M I
+				///////////////////////////////////////////////////////////////////////////////////////////////////
 
-		/*===================================================================
-	      MODULO QUE A TRAVES MODBUS MANDA EJECUTAR MANDO
-	  ===================================================================*/
-		costate
-		{
-			if (ejecuta_mando == 0x01)
-			{
-				wfd COF_Genera_Pulso_Digi(No_salida);
-				ejecuta_mando = 0x00;
+				conta_secuen_hmi++;
+				waitfor(DelayMs(100));
+				// mmPresetReg_gate(   unsigned wAddr,            unsigned wReg,      unsigned wVal)
+				waitfor(error = mmPresetReg_gate(addr_reg_mb_HMI, addr_reg_conta_sec_hmi, conta_secuen_hmi)); // WR conta secuencial
+				if (error == 0xffff)
+				{
+					nada = 0x00;
+				}
+				else
+				{
+					PRINTFDEBUG("Error Conta Sec HMI\n");
+					nada = 0x00;
+				}
+
+				if (my4XRegs[reset_slink] == 0xaa55)
+				{ // Reset hardware Medidor de Nivel
+					digOut(0, 0);
+					waitfor(DelayMs(2000));
+					digOut(0, 1);
+					my4XRegs[reset_slink] = 0x00;
+				}
+
+				if (my4XRegs[reset_alarma] == 0xaa55)
+				{
+					digOut(1, 0);
+					waitfor(DelayMs(2000));
+					digOut(1, 1);
+					my4XRegs[reset_alarma] = 0x00;
+				}
+
+				if (my4XRegs[reset_rabbit] == 0xaa55)
+				{
+					digOut(2, 0);
+					waitfor(DelayMs(2000));
+					digOut(2, 1);
+					my4XRegs[reset_rabbit] = 0x00;
+				}
+
+				tiempo_final = read_rtc();
+				ventana_tiempo = tiempo_final - tiempo_inicio;
+				PRINTFDEBUG("Tiempo proceso=%lu\n", ventana_tiempo);
 			}
 		}
 	}
+
+	/*===================================================================
+	      MODULO QUE A TRAVES MODBUS MANDA EJECUTAR MANDO
+	  ===================================================================*/
+	costate
+	{
+		if (ejecuta_mando == 0x01)
+		{
+			wfd COF_Genera_Pulso_Digi(No_salida);
+			ejecuta_mando = 0x00;
+		}
+	}
+}
 }
