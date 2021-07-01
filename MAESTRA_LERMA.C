@@ -216,6 +216,17 @@ union
 const unsigned int binario[16] = {{0x0001}, {0x0002}, {0x0004}, {0x0008}, {0x0010}, {0x0020}, {0x0040}, {0x0080}, {0x0100}, {0x0200}, {0x0400}, {0x0800}, {0x1000}, {0x2000}, {0x4000}, {0x8000}};
 const unsigned int bin[8] = {{0x01}, {0x02}, {0x04}, {0x08}, {0x10}, {0x20}, {0x40}, {0x80}};
 /*******************************************************************************
+   COSTATE PARA LECTURA UTR Y ESCRITURA HMI
+*******************************************************************************/
+
+#define MUTEX_LIBRE 1
+#define MUTEX_OCUPADO 0
+#define ULTIMA_DIRECCION_HMI 645
+
+unsigned char mutex_mensajes_scarling = MUTEX_LIBRE;
+unsigned char mutex_mensajes_hmi = MUTEX_LIBRE;
+unsigned int contador_costate_hmi_utr = 0;
+/*******************************************************************************
    DEFINICION FUNCIONES PROTOTIPO
 *******************************************************************************/
 
@@ -469,13 +480,6 @@ unsigned char enlaceweb_estado[20];
 unsigned long enlaceweb_timerweb[20];
 unsigned char flag_inicio;
 
-#define MUTEX_LIBRE 1
-#define MUTEX_OCUPADO 0
-#define ULTIMA_DIRECCION_HMI 645
-
-unsigned char mutex_mensajes_scarling = MUTEX_LIBRE;
-unsigned int contador_costate_hmi_utr = 0;
-
 unsigned int
 calcula_estado_enlaceweb(unsigned int num)
 {
@@ -509,12 +513,12 @@ cofunc void COF_captura_datos_scairlink(unsigned int No_dispo)
 	int nada;
 	PRINTFDEBUG("\nINFUNC: %u,", No_dispo);
 	waitfor(DelayMs(100));
-	//               it  = mmRead_alter(  unsigned wAddr,                    unsigned wReg,                unsigned wCount,                                     void *pwRegs)
-	while (mutex_mensajes_scarling == MUTEX_OCUPADO0)
+	while (mutex_mensajes_scarling == MUTEX_OCUPADO)
 	{
 		yield;
 	}
 	mutex_mensajes_scarling = MUTEX_OCUPADO;
+	//               it  = mmRead_alter(  unsigned wAddr,                    unsigned wReg,                unsigned wCount,                                     void *pwRegs)
 	waitfor(error = mmRead_alter(dir_scairlink, tabla[No_dispo].incio_tab_hmi, tabla[No_dispo].cantidad_hmi, (int *)&my4XRegs[tabla[No_dispo].incio_tab_hmi])); // Read registros CHALMITA
 	mutex_mensajes_scarling = MUTEX_LIBRE;
 	if (error == 0xffff)
@@ -1001,10 +1005,16 @@ main()
 			for (contador_costate_hmi_utr = 100; contador_costate_hmi_utr < ULTIMA_DIRECCION_HMI; contador_costate_hmi_utr += 100)
 			{
 				waitfor(DelayMs(100));
+				while (mutex_mensajes_hmi == MUTEX_OCUPADO)
+				{
+					yield;
+				}
+				mutex_mensajes_hmi = MUTEX_OCUPADO;
 				if (contador_costate_hmi_utr - ULTIMA_DIRECCION_HMI >= 100)
 					waitfor(error = mmPresetRegs_gate(addr_reg_mb_HMI, contador_costate_hmi_utr, 100, (int *)&my4XRegs[contador_costate_hmi_utr]));
 				else
 					waitfor(error = mmPresetRegs_gate(addr_reg_mb_HMI, contador_costate_hmi_utr, ULTIMA_DIRECCION_HMI % 100, (int *)&my4XRegs[contador_costate_hmi_utr]));
+				mutex_mensajes_hmi = MUTEX_LIBRE;
 				if (error == 0xffff)
 				{
 					nada = 0x00;
@@ -1115,8 +1125,14 @@ main()
 					if (flag_inicio_version == 1)
 					{ // Write No Version Software RABBIT
 						waitfor(DelayMs(100));
+						while (mutex_mensajes_hmi == MUTEX_OCUPADO)
+						{
+							yield;
+						}
+						mutex_mensajes_hmi = MUTEX_OCUPADO;
 						//                     mmPresetRegs_gate(  unsigned wAddr,          unsigned wReg,   unsigned wCount,                          void *pwRegs)
 						waitfor(error = mmPresetRegs_gate(addr_reg_mb_HMI, addr_reg_mb_version, 2, (int *)&my4XRegs[addr_reg_mb_version]));
+						mutex_mensajes_hmi = MUTEX_LIBRE;
 						if (error == 0xffff)
 						{
 							PRINTFDEBUG("WR OK No_Version\n");
@@ -1133,8 +1149,14 @@ main()
 					{
 						my4XRegs[addr_reg_mb_ctrl_regio] = 0x00; // Reset registro control Bombas Scairlink
 						waitfor(DelayMs(100));
+						while (mutex_mensajes_hmi == MUTEX_OCUPADO)
+						{
+							yield;
+						}
+						mutex_mensajes_hmi = MUTEX_OCUPADO;
 						// mmPresetReg_gate(  unsigned wAddr,         unsigned wReg, unsigned wVal)
 						waitfor(error = mmPresetReg_gate(addr_reg_mb_HMI, addr_reg_mb_ctrl_hmi, 0));
+						mutex_mensajes_hmi = MUTEX_LIBRE;
 						if (error == 0xffff)
 						{
 							if (my4XRegs[addr_reg_mb_ctrl_hmi] == 0)
@@ -1211,12 +1233,12 @@ main()
 					waitfor(DelayMs(100));
 				}
 
-				//               it  = mmRead_alter(   unsigned wAddr,                         unsigned wReg,                    unsigned wCount,                                  void *pwRegs)
 				while (mutex_mensajes_scarling == MUTEX_OCUPADO)
 				{
 					yield;
 				}
 				mutex_mensajes_scarling = MUTEX_OCUPADO;
+				//               it  = mmRead_alter(   unsigned wAddr,                         unsigned wReg,                    unsigned wCount,                                  void *pwRegs)
 				waitfor(error = mmRead_alter(dir_scairlink, tabla[dispo_local].incio_tab_hmi, tabla[dispo_local].cantidad_hmi, (int *)&my4XRegs[tabla[dispo_local].incio_tab_hmi])); // Read registros Scairlink
 				mutex_mensajes_scarling = MUTEX_LIBRE;
 				if (error == 0xffff)
@@ -1245,15 +1267,27 @@ main()
 				if (flag_inicio_control_A == 0)
 				{
 					waitfor(DelayMs(100));
+					while (mutex_mensajes_hmi == MUTEX_OCUPADO)
+					{
+						yield;
+					}
+					mutex_mensajes_hmi = MUTEX_OCUPADO;
 					//               it  = mmRead_gate(      unsigned wAddr,         unsigned wReg,   unsigned wCount,             void *pwRegs)
 					waitfor(error = mmRead_gate(addr_reg_mb_HMI, addr_reg_mb_ctrl_hmi, 1, (int *)&cmd_control_hmi)); // Read Registros
+					mutex_mensajes_hmi = MUTEX_LIBRE;
 					if (error == 0xffff)
 					{
 						if (cmd_control_hmi != 0)
 						{
 							waitfor(DelayMs(100));
+							while (mutex_mensajes_hmi == MUTEX_OCUPADO)
+							{
+								yield;
+							}
+							mutex_mensajes_hmi = MUTEX_OCUPADO;
 							// mmPresetReg_gate(   unsigned wAddr,          unsigned wReg, unsigned wVal)
 							waitfor(error = mmPresetReg_gate(addr_reg_mb_HMI, addr_reg_mb_ctrl_hmi, 0));
+							mutex_mensajes_hmi = MUTEX_LIBRE;
 							if (error == 0xffff)
 							{
 								PRINTFDEBUG("--%x\n", cmd_control_hmi);
@@ -1367,8 +1401,14 @@ main()
 
 				conta_secuen_hmi++;
 				waitfor(DelayMs(100));
+				while (mutex_mensajes_hmi == MUTEX_OCUPADO)
+				{
+					yield;
+				}
+				mutex_mensajes_hmi = MUTEX_OCUPADO;
 				// mmPresetReg_gate(   unsigned wAddr,            unsigned wReg,      unsigned wVal)
 				waitfor(error = mmPresetReg_gate(addr_reg_mb_HMI, addr_reg_conta_sec_hmi, conta_secuen_hmi)); // WR conta secuencial
+				mutex_mensajes_hmi = MUTEX_LIBRE;
 				if (error == 0xffff)
 				{
 					nada = 0x00;
@@ -1420,5 +1460,4 @@ main()
 			ejecuta_mando = 0x00;
 		}
 	}
-}
 }
