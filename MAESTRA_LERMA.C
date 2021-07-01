@@ -1001,13 +1001,13 @@ main()
 			///////////////////////////////////////////////////////////////////////////////////////////////////
 			////       W R I T E        D A T A        H M I
 			///////////////////////////////////////////////////////////////////////////////////////////////////
-			for (contador_costate_hmi_utr = 100; contador_costate_hmi_utr <= ULTIMA_DIRECCION_HMI; contador_costate_hmi_utr += 100)
+			for (contador_costate_hmi_utr = 100; contador_costate_hmi_utr < ULTIMA_DIRECCION_HMI; contador_costate_hmi_utr += 100)
 			{
 				waitfor(DelayMs(100));
-				if (contador_costate_hmi_utr != ULTIMA_DIRECCION_HMI)
+				if (contador_costate_hmi_utr - ULTIMA_DIRECCION_HMI >= 100)
 					waitfor(error = mmPresetRegs_gate(addr_reg_mb_HMI, contador_costate_hmi_utr, 100, (int *)&my4XRegs[contador_costate_hmi_utr]));
 				else
-					waitfor(error = mmPresetRegs_gate(addr_reg_mb_HMI, contador_costate_hmi_utr, ULTIMA_DIRECCION_HMI - contador_costate_hmi_utr, (int *)&my4XRegs[contador_costate_hmi_utr]));
+					waitfor(error = mmPresetRegs_gate(addr_reg_mb_HMI, contador_costate_hmi_utr, ULTIMA_DIRECCION_HMI % 100, (int *)&my4XRegs[contador_costate_hmi_utr]));
 				if (error == 0xffff)
 				{
 					nada = 0x00;
