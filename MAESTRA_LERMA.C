@@ -1105,15 +1105,11 @@ main()
 					}
 					mutex_mensajes_scarling = MUTEX_OCUPADO;
 					waitfor(error = mmPresetRegs_alter(101, U_segundos, 7, (int *)&my4XRegs[U_segundos])); // Set Time CTM
-
-					waitfor(DelayMs(100));
-					
+					//waitfor(DelayMs(100));
 					waitfor(error = mmPresetRegs_alter(104, U_segundos, 7, (int *)&my4XRegs[U_segundos])); // Set Time GM14
-
-					waitfor(DelayMs(100));
+					//waitfor(DelayMs(100));
 					waitfor(error = mmPresetRegs_alter(105, U_segundos, 7, (int *)&my4XRegs[U_segundos])); // Set Time GM14 A
-
-					waitfor(DelayMs(100));
+					//waitfor(DelayMs(100));
 					waitfor(error = mmPresetRegs_alter(107, U_segundos, 7, (int *)&my4XRegs[U_segundos])); // Set Time ZACATENCO 2
 					mutex_mensajes_scarling = MUTEX_LIBRE;
 					
