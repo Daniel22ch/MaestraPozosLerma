@@ -511,7 +511,7 @@ cofunc void COF_captura_datos_scairlink(unsigned int No_dispo)
 {
 	int error;
 	int nada;
-	PRINTFDEBUG("\nINFUNC: %u,", No_dispo);
+	PRINTFDEBUG("\nPolling Slv: %u,", No_dispo);
 	waitfor(DelayMs(100));
 	while (mutex_mensajes_scarling == MUTEX_OCUPADO)
 	{
@@ -545,7 +545,7 @@ cofunc void COF_captura_datos_scairlink(unsigned int No_dispo)
 		else
 		{ //rf mal
 			calcula_estado_enlaceweb(No_dispo);
-			PRINTFDEBUG("\n enlaceweb[%d]=%d", No_dispo, enlaceweb_estado[No_dispo]);
+			PRINTFDEBUG("\n enlaceweb[%d]=%d\n", No_dispo, enlaceweb_estado[No_dispo]);
 			if (enlaceweb_estado[No_dispo] == 0x01)
 			{ //rf mal + web ok
 				apunta_tiempo = (int *)&my4XRegs[tabla[No_dispo].tiempo_hmi];
@@ -561,7 +561,7 @@ cofunc void COF_captura_datos_scairlink(unsigned int No_dispo)
 	}
 	else
 	{
-		PRINTFDEBUG("\nINFUNC code: %u,", error);
+		PRINTFDEBUG("\nINFUNC code: %d,", error);
 		conta_error_scailink[No_dispo] = conta_error_scailink[No_dispo] + 1;
 		if (conta_error_scailink[No_dispo] >= No_max_errores_conta_scairlink)
 		{
@@ -987,21 +987,17 @@ main()
 			///////////////////////////////////////////////////////////////////////////////////////////////////
 			////       R E A D       D A T A       U T R ' S
 			///////////////////////////////////////////////////////////////////////////////////////////////////
+			waitfor(DelayMs(3000));
 
 			PRINTFDEBUG("RD slaves\n");
 			for (contador_costate_hmi_utr = 0; contador_costate_hmi_utr < No_max_sitios; contador_costate_hmi_utr++)
 			{
-				while (mutex_mensajes_scarling == MUTEX_OCUPADO)
-				{
-					yield;
-				}
-				mutex_mensajes_scarling = MUTEX_OCUPADO;
+				waitfor(DelayMs(100));
 				if (contador_costate_hmi_utr != dispo_local)
 				{
 					PRINTFDEBUG("RD slave [%d]\n", contador_costate_hmi_utr);
 					wfd COF_captura_datos_scairlink(contador_costate_hmi_utr);
 				}
-				mutex_mensajes_scarling = MUTEX_LIBRE;
 				yield;
 			}
 			PRINTFDEBUG("ENd rd Slaves\n");
@@ -1027,7 +1023,7 @@ main()
 				}
 				else
 				{
-					PRINTFDEBUG("Error H3\n");
+					PRINTFDEBUG("Error H%d\n", contador_costate_hmi_utr/100);
 					nada = 0x00;
 				}
 				yield;
