@@ -718,7 +718,7 @@ main()
 	mmrCinit_gate(9600);  // Velocidad puerto Master hacia HMI + SCAIRLINK
 	mmrEinit_alter(9600); // Velocidad puerto Master hacia HMI + SCAIRLINK
 	mmrFinit_clon(9600);  // Velocidad puerto Master hacia HMI + SCAIRLINK
-						  /*===================================================================
+	/*===================================================================
 	   Inicializacion de extructuras, variables etc.
 	===================================================================*/
 	memset(tabla_modbus, 0x00, sizeof(tabla_modbus));
@@ -1079,8 +1079,14 @@ main()
 					PRINTFDEBUG("Fecha -> %u/%u/%u %u:%u:%u\n\r", rtc.tm_year + 1900, rtc.tm_mon, rtc.tm_mday, rtc.tm_hour, rtc.tm_min, rtc.tm_sec);
 
 					waitfor(DelayMs(100));
+					while (mutex_mensajes_scarling == MUTEX_OCUPADO)
+					{
+						yield;
+					}
+					mutex_mensajes_scarling = MUTEX_OCUPADO;
 					//                      mmPresetRegs_alter(  unsigned wAddr,   unsigned wReg,   unsigned wCount,          void *pwRegs)
 					waitfor(error = mmPresetRegs_alter(101, U_segundos, 7, (int *)&my4XRegs[U_segundos])); // Set Time TRIFURCACION
+					mutex_mensajes_scarling = MUTEX_LIBRE;
 					if (error != 0xffff)
 					{
 						PRINTFDEBUG("Error Sinc Time Pozo 0\n");
@@ -1093,9 +1099,15 @@ main()
 					}
 
 					waitfor(DelayMs(100));
+					while (mutex_mensajes_scarling == MUTEX_OCUPADO)
+					{
+						yield;
+					}
+					mutex_mensajes_scarling = MUTEX_OCUPADO;
 					waitfor(error = mmPresetRegs_alter(101, U_segundos, 7, (int *)&my4XRegs[U_segundos])); // Set Time CTM
 
 					waitfor(DelayMs(100));
+					
 					waitfor(error = mmPresetRegs_alter(104, U_segundos, 7, (int *)&my4XRegs[U_segundos])); // Set Time GM14
 
 					waitfor(DelayMs(100));
@@ -1103,7 +1115,8 @@ main()
 
 					waitfor(DelayMs(100));
 					waitfor(error = mmPresetRegs_alter(107, U_segundos, 7, (int *)&my4XRegs[U_segundos])); // Set Time ZACATENCO 2
-
+					mutex_mensajes_scarling = MUTEX_LIBRE;
+					
 					if (error != 0xffff)
 					{
 						PRINTFDEBUG("Error Sinc Time ZACATENCO 2\n");
@@ -1181,8 +1194,14 @@ main()
 					if (flag_inicio_control_B == 1)
 					{
 						waitfor(DelayMs(100));
+						while (mutex_mensajes_scarling == MUTEX_OCUPADO)
+						{
+							yield;
+						}
+						mutex_mensajes_scarling = MUTEX_OCUPADO;
 						// mmPresetReg_alter(unsigned wAddr,          unsigned wReg, unsigned wVal)
 						waitfor(error = mmPresetReg_alter(dir_scairlink, addr_reg_mb_ctrl_hmi, 0));
+						mutex_mensajes_scarling = MUTEX_LIBRE;
 						if (error == 0xffff)
 						{
 							PRINTFDEBUG("WR OK reset__B_Scairlink\n");
@@ -1195,50 +1214,52 @@ main()
 						}
 					}
 
-					/*
-            wfd error = COF_RD_INSTA_UTR();                                // RD valores Instantaneos del
-            enlace_global_1  = esta_com[0].enlace;
-            enlace_global_2  = esta_com[1].enlace;
-            enlace_global_3  = esta_com[2].enlace;
-            if( enlace_global_1==1 && enlace_global_2==1 && enlace_global_3==1 ){
-             	conta_error_conse_scairlink = 0x00;
-              for(tt=0; tt<No_max_sitios; tt++){
-                No_dispo = tt;
-                //memcpy((char*)&my4XRegs[tabla[No_dispo].incio_tab_hmi],(char*)&my4XRegs[tabla[No_dispo].incio_tab_hmi], tabla[No_dispo].cantidad_hmi*2);      // Copia valores       ( CHALMITA )
-                //my4XRegs[tabla[No_dispo].enlace_hmi] = my4XRegs[tabla[No_dispo].enlace_scair];                                // enlace radio CHALMITA
-                yield;
-              }
-              for(z=310; z<=320; z++){
-                  PRINTFDEBUG("%u,",my4XRegs[z]);
-              }
-              PRINTFDEBUG("\n");
-            }else{
-              conta_error_conse_scairlink++;
-							if( conta_error_conse_scairlink >= No_max_errores_conta_scairlink){
-              	conta_error_conse_scairlink = No_max_errores_conta_scairlink;
-                for(tt=0; tt<No_max_sitios; tt++){
-                  No_dispo = tt;
-                  my4XRegs[tabla[No_dispo].enlace_hmi] = 0x00;
-                }
-              }
-              PRINTFDEBUG("Err_RD_Scair\n");
-            }
-            for(tt=0; tt<No_max_sitios; tt++){
-             	No_dispo = tt;
-              if( my4XRegs[tabla[No_dispo].enlace_hmi] == 0x01 ){
-               apunta_tiempo = (int *)&my4XRegs[tabla[No_dispo].tiempo_hmi];
-               Almacena_Datos_Tiempo( apunta_tiempo );
-              }
-				    }
-          */
-					/////////////////////////////////////////////////////////////////////////////////////////////////////
-					//
-					//     READ DATOS LOCAL SCAIRLINK   ( Falla Energia, Mante, Volt Bateria)  y  WRITE DATOS ( Nivel, Presion, Flujo, Posi Valvula )   Rabbit <---> Scairlnk
-					//
-					/////////////////////////////////////////////////////////////////////////////////////////////////////
-					waitfor(DelayMs(100));
+						/*
+						wfd error = COF_RD_INSTA_UTR();                                // RD valores Instantaneos del
+						enlace_global_1  = esta_com[0].enlace;
+						enlace_global_2  = esta_com[1].enlace;
+						enlace_global_3  = esta_com[2].enlace;
+						if( enlace_global_1==1 && enlace_global_2==1 && enlace_global_3==1 ){
+							conta_error_conse_scairlink = 0x00;
+						for(tt=0; tt<No_max_sitios; tt++){
+							No_dispo = tt;
+							//memcpy((char*)&my4XRegs[tabla[No_dispo].incio_tab_hmi],(char*)&my4XRegs[tabla[No_dispo].incio_tab_hmi], tabla[No_dispo].cantidad_hmi*2);      // Copia valores       ( CHALMITA )
+							//my4XRegs[tabla[No_dispo].enlace_hmi] = my4XRegs[tabla[No_dispo].enlace_scair];                                // enlace radio CHALMITA
+							yield;
+						}
+						for(z=310; z<=320; z++){
+							PRINTFDEBUG("%u,",my4XRegs[z]);
+						}
+						PRINTFDEBUG("\n");
+						}else{
+						conta_error_conse_scairlink++;
+										if( conta_error_conse_scairlink >= No_max_errores_conta_scairlink){
+							conta_error_conse_scairlink = No_max_errores_conta_scairlink;
+							for(tt=0; tt<No_max_sitios; tt++){
+							No_dispo = tt;
+							my4XRegs[tabla[No_dispo].enlace_hmi] = 0x00;
+							}
+						}
+						PRINTFDEBUG("Err_RD_Scair\n");
+						}
+						for(tt=0; tt<No_max_sitios; tt++){
+							No_dispo = tt;
+						if( my4XRegs[tabla[No_dispo].enlace_hmi] == 0x01 ){
+						apunta_tiempo = (int *)&my4XRegs[tabla[No_dispo].tiempo_hmi];
+						Almacena_Datos_Tiempo( apunta_tiempo );
+						}
+								}
+						*/
+						/////////////////////////////////////////////////////////////////////////////////////////////////////
+						//
+						//     READ DATOS LOCAL SCAIRLINK   ( Falla Energia, Mante, Volt Bateria)  y  WRITE DATOS ( Nivel, Presion, Flujo, Posi Valvula )   Rabbit <---> Scairlnk
+						//
+						/////////////////////////////////////////////////////////////////////////////////////////////////////
+								
 				}
 
+
+				waitfor(DelayMs(100));
 				while (mutex_mensajes_scarling == MUTEX_OCUPADO)
 				{
 					yield;
@@ -1251,12 +1272,12 @@ main()
 				{
 					//memcpy((char*)&my4XRegs[tabla[dispo_local].incio_tab_hmi],(char*)&my4XRegs[tabla[dispo_local].incio_tab_scair], tabla[dispo_local].cantidad_hmi*2);      // Copia valores       ( CHALMITA )
 					/*
-              if( my4XRegs[tabla[dispo_local].enlace_hmi] >= 2){
-                 my4XRegs[tabla[dispo_local].enlace_hmi] = 0x01;
-              }else{
-              	my4XRegs[tabla[dispo_local].enlace_hmi] = 0x00;
-              }
-            */
+					if( my4XRegs[tabla[dispo_local].enlace_hmi] >= 2){
+						my4XRegs[tabla[dispo_local].enlace_hmi] = 0x01;
+					}else{
+						my4XRegs[tabla[dispo_local].enlace_hmi] = 0x00;
+					}
+					*/
 					my4XRegs[322] = 0x01;							// Mantenimiento
 					my4XRegs[tabla[dispo_local].enlace_hmi] = 0x01; // Enlace
 					apunta_tiempo = (int *)&my4XRegs[tabla[dispo_local].tiempo_hmi];
@@ -1328,7 +1349,13 @@ main()
 						{
 							waitfor(DelayMs(100));
 							// mmPresetReg_alter(   unsigned wAddr,            unsigned wReg, unsigned wVal)
+							while (mutex_mensajes_scarling == MUTEX_OCUPADO)
+							{
+								yield;
+							}
+							mutex_mensajes_scarling = MUTEX_OCUPADO;
 							waitfor(error = mmPresetReg_alter(dir_scairlink, addr_reg_mb_ctrl_regio, 0));
+							mutex_mensajes_scarling = MUTEX_LIBRE;
 							if (error == 0xffff)
 							{
 								PRINTFDEBUG("--%x\n", cmd_control_regional);
@@ -1375,8 +1402,14 @@ main()
 						if (No_sitio > 0 && No_sitio < 55)
 						{
 							waitfor(DelayMs(100));
+							while (mutex_mensajes_scarling == MUTEX_OCUPADO)
+							{
+								yield;
+							}
+							mutex_mensajes_scarling = MUTEX_OCUPADO;
 							// mmPresetReg_alter(  unsigned wAddr,            unsigned wReg,    nsigned wVal)
 							waitfor(error = mmPresetReg_alter(No_sitio + 100, addr_reg_mb_ctrl_regio, cmd_control));
+							mutex_mensajes_scarling = MUTEX_LIBRE;
 							PRINTFDEBUG("START/STOP %d,%d\n", No_sitio, cmd_control);
 							if (error != 0xffff)
 							{
