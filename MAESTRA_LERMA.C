@@ -991,11 +991,17 @@ main()
 			PRINTFDEBUG("RD slaves\n");
 			for (contador_costate_hmi_utr = 0; contador_costate_hmi_utr < No_max_sitios; contador_costate_hmi_utr++)
 			{
+				while (mutex_mensajes_scarling == MUTEX_OCUPADO)
+				{
+					yield;
+				}
+				mutex_mensajes_scarling = MUTEX_OCUPADO;
 				if (contador_costate_hmi_utr != dispo_local)
 				{
 					PRINTFDEBUG("RD slave [%d]\n", contador_costate_hmi_utr);
 					wfd COF_captura_datos_scairlink(contador_costate_hmi_utr);
 				}
+				mutex_mensajes_scarling = MUTEX_LIBRE;
 				yield;
 			}
 			PRINTFDEBUG("ENd rd Slaves\n");
