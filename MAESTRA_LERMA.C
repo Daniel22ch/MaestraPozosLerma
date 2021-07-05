@@ -33,7 +33,7 @@ const unsigned char Nom_Proy[] = "MASTER - 34";
 const unsigned char Version[] = "Version 34.0";
 const unsigned char Fecha_Ver[] = "05/Jul/2021";
 
-#define ver_sion 33.1
+#define ver_sion 34.0
 
 #define addr_reg_mb_version 2030
 #define addr_reg_conta_sec_hmi 2026
