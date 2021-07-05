@@ -5,3 +5,6 @@
 *.map
 *.rom
 *.brk
+*.HEX
+*.UPL
+*.bin
