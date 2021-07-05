@@ -15,7 +15,7 @@ Ver 4.0		revisión Daniel
 */
 #define PRINTFDEBUG printf
 #define No_max_sitios 19
-#define TIMEOUT_ESTADOWEB 180
+#define TIMEOUT_ESTADOWEB 360
 unsigned char conta_error_conse_scairlink;
 
 #define addr_reg_mb_HMI 5
@@ -511,7 +511,7 @@ cofunc void COF_captura_datos_scairlink(unsigned int No_dispo)
 	int error;
 	int nada;
 	PRINTFDEBUG("\nPolling Slv: %u,", No_dispo);
-	waitfor(DelayMs(200));
+	waitfor(DelayMs(300));
 	while (mutex_mensajes_scarling == MUTEX_OCUPADO)
 	{
 		yield;
@@ -521,10 +521,11 @@ cofunc void COF_captura_datos_scairlink(unsigned int No_dispo)
 	waitfor(error = mmRead_alter(dir_scairlink, tabla[No_dispo].incio_tab_hmi, tabla[No_dispo].cantidad_hmi, (int *)&my4XRegs[tabla[No_dispo].incio_tab_hmi])); // Read registros CHALMITA
 	mutex_mensajes_scarling = MUTEX_LIBRE;
 	if (error == 0xffff)
-	{
+	{// Contesto el Slink
 		//memcpy((char*)&my4XRegs[tabla[No_dispo].incio_tab_hmi],(char*)&my4XRegs[tabla[No_dispo].incio_tab_scair], tabla[No_dispo].cantidad_hmi*2);      // Copia valores       ( CHALMITA )
 		//my4XRegs[tabla[No_dispo].enlace_hmi] = my4XRegs[tabla[No_dispo].enlace_scair];                                // enlace radio CHALMITA
 		//nada = 0x00;
+		PRINTFDEBUG("\n Com Slink ok[%d]", No_dispo);
 		conta_error_scailink[No_dispo] = 0x00;
 		if (my4XRegs[tabla[No_dispo].enlace_hmi] == 0x01)
 		{ // si hay enlace Rf fecha se obtiente con almacena datos tiempo
@@ -547,6 +548,7 @@ cofunc void COF_captura_datos_scairlink(unsigned int No_dispo)
 			PRINTFDEBUG("\n enlaceweb[%d]=%d\n", No_dispo, enlaceweb_estado[No_dispo]);
 			if (enlaceweb_estado[No_dispo] == 0x01)
 			{ //rf mal + web ok
+				PRINTFDEBUG("web ok ");
 				apunta_tiempo = (int *)&my4XRegs[tabla[No_dispo].tiempo_hmi];
 				Almacena_Datos_Tiempo(apunta_tiempo);
 				memcpy(&my4XRegs[tabla[No_dispo].incio_tab_hmi], &my4XRegs[2300 + tabla[No_dispo].incio_tab_hmi], 2 * tabla[No_dispo].cantidad_hmi + 12);
@@ -554,6 +556,7 @@ cofunc void COF_captura_datos_scairlink(unsigned int No_dispo)
 			}
 			else
 			{ // rf mal + web mal
+				PRINTFDEBUG("web NOT ");
 				my4XRegs[tabla[No_dispo].enlace_hmi] = 0x00;
 			}
 		}
@@ -581,6 +584,7 @@ cofunc void COF_captura_datos_scairlink(unsigned int No_dispo)
 			my4XRegs[tabla[No_dispo].enlace_hmi] = 0x00;
 		}
 	}
+	PRINTFDEBUG("\n enlaceslv[%d]=%d\n", No_dispo, my4XRegs[tabla[No_dispo].enlace_hmi]);
 }
 //****************************************************
 //    Lee ESTADO PERILLAS     AUTO, MANUAL  OFF
@@ -1003,30 +1007,94 @@ main()
 			///////////////////////////////////////////////////////////////////////////////////////////////////
 			////       W R I T E        D A T A        H M I
 			///////////////////////////////////////////////////////////////////////////////////////////////////
-			for (contador_costate_hmi_utr = 100; contador_costate_hmi_utr < ULTIMA_DIRECCION_HMI; contador_costate_hmi_utr += 100)
-			{
-				waitfor(DelayMs(100));
-				while (mutex_mensajes_scarling == MUTEX_OCUPADO)
-				{
-					yield;
-				}
-				mutex_mensajes_scarling = MUTEX_OCUPADO;
-				if (contador_costate_hmi_utr - ULTIMA_DIRECCION_HMI >= 100)
-					waitfor(error = mmPresetRegs_gate(addr_reg_mb_HMI, contador_costate_hmi_utr, 100, (int *)&my4XRegs[contador_costate_hmi_utr]));
-				else
-					waitfor(error = mmPresetRegs_gate(addr_reg_mb_HMI, contador_costate_hmi_utr, ULTIMA_DIRECCION_HMI % 100, (int *)&my4XRegs[contador_costate_hmi_utr]));
-				mutex_mensajes_scarling = MUTEX_LIBRE;
-				if (error == 0xffff)
-				{
-					nada = 0x00;
-				}
-				else
-				{
-					PRINTFDEBUG("Error H%d\n", contador_costate_hmi_utr/100);
-					nada = 0x00;
-				}
-				yield;
-			}
+			// for (contador_costate_hmi_utr = 100; contador_costate_hmi_utr < ULTIMA_DIRECCION_HMI; contador_costate_hmi_utr += 100)
+			// {
+			// 	waitfor(DelayMs(100));
+			// 	while (mutex_mensajes_scarling == MUTEX_OCUPADO)
+			// 	{
+			// 		yield;
+			// 	}
+			// 	mutex_mensajes_scarling = MUTEX_OCUPADO;
+			// 	PRINTFDEBUG("Valor contador_costate_hmi_utr es: %d\n",contador_costate_hmi_utr);
+			// 	//if (contador_costate_hmi_utr - ULTIMA_DIRECCION_HMI >= 100){
+			// 	if (ULTIMA_DIRECCION_HMI - contador_costate_hmi_utr >= 100){
+			// 		PRINTFDEBUG("Escrbiendo a la direccion :%d\n", contador_costate_hmi_utr);
+			// 		waitfor(error = mmPresetRegs_gate(addr_reg_mb_HMI, contador_costate_hmi_utr, 100, (int *)&my4XRegs[contador_costate_hmi_utr]));
+			// 	}else{
+			// 		PRINTFDEBUG("Escrbiendo a la direccion :%d\n", contador_costate_hmi_utr);
+			// 		waitfor(error = mmPresetRegs_gate(addr_reg_mb_HMI, contador_costate_hmi_utr, ULTIMA_DIRECCION_HMI % 100, (int *)&my4XRegs[contador_costate_hmi_utr]));
+			// 	}
+			// 	mutex_mensajes_scarling = MUTEX_LIBRE;
+			// 	if (error == 0xffff)
+			// 	{
+			// 		nada = 0x00;
+			// 	}
+			// 	else
+			// 	{
+			// 		PRINTFDEBUG("Error H%d\n", contador_costate_hmi_utr/100);
+			// 		nada = 0x00;
+			// 	}
+			// 	yield;
+			// }
+			          waitfor( DelayMs(100) ); 
+          //                      mmPresetRegs_gate(     unsigned wAddr,   unsigned wReg,   unsigned wCount,          void *pwRegs) 
+          waitfor (      error = mmPresetRegs_gate(    addr_reg_mb_HMI,             100,               100, (int *)&my4XRegs[100])); 
+          if( error == 0xffff){ 
+              nada = 0x00; 
+          }else{ 
+              PRINTFDEBUG("Error H1\n"); 
+              nada = 0x00; 
+          } 
+ 
+          waitfor( DelayMs(100) ); 
+          //                     mmPresetRegs_gate(     unsigned wAddr,   unsigned wReg,   unsigned wCount,          void *pwRegs) 
+          waitfor (      error = mmPresetRegs_gate(    addr_reg_mb_HMI,             200,               100, (int *)&my4XRegs[200])); 
+          if( error == 0xffff){ 
+              nada = 0x00; 
+          }else{ 
+              PRINTFDEBUG("Error H2\n"); 
+              nada = 0x00; 
+          } 
+ 
+          waitfor( DelayMs(100) ); 
+          //                     mmPresetRegs_gate(     unsigned wAddr,   unsigned wReg,   unsigned wCount,          void *pwRegs) 
+          waitfor (      error = mmPresetRegs_gate(    addr_reg_mb_HMI,             300,               100, (int *)&my4XRegs[300])); 
+          if( error == 0xffff){ 
+              nada = 0x00; 
+          }else{ 
+              PRINTFDEBUG("Error H3\n"); 
+              nada = 0x00; 
+          } 
+ 
+          waitfor( DelayMs(100) ); 
+          //                     mmPresetRegs_gate(     unsigned wAddr,   unsigned wReg,   unsigned wCount,          void *pwRegs) 
+          waitfor (      error = mmPresetRegs_gate(    addr_reg_mb_HMI,             400,               100, (int *)&my4XRegs[400])); 
+          if( error == 0xffff){ 
+              nada = 0x00; 
+          }else{ 
+              PRINTFDEBUG("Error H4\n"); 
+              nada = 0x00; 
+          } 
+ 
+          waitfor( DelayMs(100) ); 
+          //                     mmPresetRegs_gate(     unsigned wAddr,   unsigned wReg,   unsigned wCount,          void *pwRegs) 
+          waitfor (      error = mmPresetRegs_gate(    addr_reg_mb_HMI,             500,               100, (int *)&my4XRegs[500])); 
+          if( error == 0xffff){ 
+              nada = 0x00; 
+          }else{ 
+              PRINTFDEBUG("Error H5\n"); 
+              nada = 0x00; 
+          } 
+ 
+          waitfor( DelayMs(100) ); 
+          //                     mmPresetRegs_gate(     unsigned wAddr,   unsigned wReg,   unsigned wCount,          void *pwRegs) 
+          waitfor (      error = mmPresetRegs_gate(    addr_reg_mb_HMI,             600,               45, (int *)&my4XRegs[600])); 
+          if( error == 0xffff){ 
+              nada = 0x00; 
+          }else{ 
+              PRINTFDEBUG("Error H6\n"); 
+              nada = 0x00; 
+          } 
 		}
 		/*=================================================================
 		==========  R U T I N A    M O D B U S    T C P / I P    ==========
